@@ -30,7 +30,7 @@ Em hospedagem estática, configure o fallback de SPA para `index.html` (as rotas
 - **Autenticação e banco**: os dados ficam no `localStorage` do navegador (`src/lib/store.tsx`). A integração com Supabase Auth e PostgreSQL ainda não foi feita. O estado está isolado no store para facilitar essa troca.
 - **Professor de IA**: não implementado. Precisa de um endpoint de backend, com a chave de API fora do frontend.
 - **Conteúdo do edital**: os nomes das disciplinas de Básicos e Gerais seguem o resumo do Anexo V. Os 16 itens de Específicos vêm do plano do projeto e não foram conferidos literalmente com o edital; o resumo consultado cita 13 itens. Confira em `src/lib/content.ts` antes de usar como roteiro oficial.
-- **Questões**: o app traz apenas 14 questões de exemplo, criadas para testar o fluxo. Não são questões da Selecon. Importe o seu banco pela aba Estudo > Importar.
+- **Questões**: o app traz 30 questões de exemplo, criadas para testar o fluxo. Não são questões da Selecon. Importe o seu banco pela aba Estudo > Importar.
 - **Horário da prova**: 13:00 é uma referência. O horário exato vem no Cartão de Confirmação. Ajuste `EXAM.startTime` em `src/lib/content.ts`.
 - **Contador**: mostra o tempo exato até a prova, então no dia 23/11 aparecem 26 dias e 23 horas. Contar dias de calendário daria 27.
 - **Componentes**: a interface usa componentes próprios em Tailwind, não shadcn/ui, para manter o bundle enxuto.
@@ -43,3 +43,21 @@ src/
   components/ layout (sidebar, topbar, navegação móvel) e componentes de UI
   pages/      Login, Hoje, Plano, Estudo, Simulados, Progresso, Casal, Ajustes
 ```
+
+## Auditoria técnica (branch fix/auditoria-missao-11)
+
+Verificado nesta branch:
+- `npm test`: 35 testes (datas no fuso America/Cuiaba, contador antes e depois de 20/12 às 13:00, cronograma que não ultrapassa a disponibilidade, replanejamento idempotente, pontuação oficial com pesos 1 / 1 / 1,75, composição 15 + 15 + 40, validação do banco, regra de domínio com no mínimo 5 respostas).
+- `npm run build`: compilação TypeScript estrita e build de produção.
+- Largura de 320 a 1440 px, em 9 rotas e nos dois temas (126 combinações) sem estouro horizontal e sem erro de console, medido em Chromium headless.
+- Fluxo ponta a ponta: concluir atividade, diagnóstico com análise por disciplina, criação de meta, simulado parcial, plano.
+
+Corrigido: importação de questões usa a mesma validação dos testes; tarefas que não couberam no replanejamento aparecem como "Não acomodada"; cronômetro de estudo registra o tempo real; simulado monta a distribuição oficial e bloqueia o completo quando o banco não tem questões suficientes; tentativa fica salva no navegador; redação com linhas numeradas e rascunho automático; `vercel.json` para reescrever rotas como /ajustes.
+
+Não verificado:
+- Produção (study-blush-alpha.vercel.app): não foi possível confirmar que este repositório é o que alimenta o projeto na Vercel.
+- Horário da prova: 13:00 é um valor provisório até conferir o cartão de inscrição.
+- Questões: o banco de exemplo não é da Selecon e não deve ser usado como simulado oficial.
+- Percentuais de aprovação não são exibidos sem base estatística.
+
+Pendente (exige decisão): autenticação e banco de dados compartilhado (Supabase, possível custo); correção de redação e tutor com IA (exige chave de API configurada no servidor); mais questões validadas com o edital.

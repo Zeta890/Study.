@@ -25,6 +25,9 @@ export interface Question {
   answer: number; // índice da alternativa correta
   explanation: string;
   origin: 'exemplo' | 'importada';
+  difficulty?: 'facil' | 'medio' | 'dificil';
+  source?: string; // fonte verificável, quando houver
+  reviewedAt?: string; // data da última revisão do gabarito
 }
 
 export interface AnswerRecord {
@@ -68,7 +71,7 @@ export interface StudyLog {
 }
 
 export type ActivityKind = 'estudo' | 'revisao' | 'questoes' | 'redacao' | 'simulado';
-export type ActivityStatus = 'pending' | 'done';
+export type ActivityStatus = 'pending' | 'done' | 'unscheduled';
 
 export interface Activity {
   id: string;
@@ -84,6 +87,12 @@ export interface Activity {
 export interface Availability {
   defaultMinutes: number;
   overrides: Record<string, number>; // data -> minutos líquidos
+}
+
+export interface TimerState {
+  activityId: string;
+  accumulatedMs: number;
+  startedAt: number | null; // null = pausado
 }
 
 export interface PersonData {
@@ -102,6 +111,7 @@ export interface PersonData {
   notes: Record<string, string>;
   plan: Activity[];
   shareProgress: boolean;
+  timer: TimerState | null;
 }
 
 export interface SharedGoal {

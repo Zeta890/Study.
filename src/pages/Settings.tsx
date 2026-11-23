@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Download, Trash2 } from 'lucide-react';
 import { useStore } from '../lib/store';
 import { EXAM } from '../lib/content';
@@ -101,7 +102,7 @@ export default function Settings() {
           <p className="mt-2">Diagnóstico: {me.diagnosticDone ? 'concluído' : 'pendente'}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="ghost" onClick={() => window.location.assign('/estudo?aba=diagnostico')}>Ir ao diagnóstico</Button>
+          <Link to="/estudo?aba=diagnostico" className="inline-flex items-center justify-center rounded-xl border border-line px-3.5 py-2 text-sm font-medium hover:bg-surface-2">Ir ao diagnóstico</Link>
           <Button variant="danger" onClick={() => {
             if (window.confirm(`Apagar todos os dados de ${me.displayName}? Essa ação não pode ser desfeita. Faça um backup antes.`)) {
               dispatch({ type: 'reset-person' });

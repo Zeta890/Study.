@@ -6,6 +6,7 @@ import { AREAS, SUBJECTS, subjectById } from '../lib/content';
 import { DIAGNOSTIC_IDS } from '../lib/bank';
 import { pickNext, dueReviews, bySubject, ratio } from '../lib/stats';
 import { todayISO } from '../lib/dates';
+import { validateBank } from '../lib/validate';
 import { Bar, Button, Card, Empty, Field, Pill, inputClass } from '../components/ui';
 import { PageHeader } from '../components/Layout';
 import { cn } from '../components/cn';
@@ -35,7 +36,7 @@ export default function Study() {
         title="Estudo"
         description="Conteúdo do edital, questões, revisão espaçada e diagnóstico. Os assuntos seguem o Anexo V; confira os itens de Específicos antes de usar como roteiro oficial."
       />
-      <div role="tablist" aria-label="Seções de estudo" className="scroll-thin flex gap-1 overflow-x-auto rounded-2xl border border-line bg-surface p-1">
+      <div role="tablist" aria-label="Seções de estudo" className="flex flex-wrap gap-1 rounded-2xl border border-line bg-surface p-1">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -83,7 +84,7 @@ function Content() {
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+    <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
       <div className="flex flex-col gap-6">
         {groups.map((g) => (
           <section key={g.area} aria-label={g.label} className="flex flex-col gap-2">
@@ -284,7 +285,7 @@ function Practice() {
   if (!me) return null;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
+    <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
       <Card className="flex flex-col gap-2 p-3">
         <p className="px-2 pb-1 text-xs text-muted">Disciplina</p>
         {SUBJECTS.map((s) => {
@@ -334,10 +335,9 @@ function Reviews() {
   const [question, setQuestion] = useState<Question | undefined>(() => dueList()[0]);
   const due = dueList();
   if (!me) return null;
-  const box = (qid: string) => me.reviews[qid]?.box ?? 0;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
+    <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
       <div className="flex flex-col gap-4">
         {due.length === 0 || !question ? (
           <Empty
@@ -369,7 +369,6 @@ function Reviews() {
             );
           })}
         </ul>
-        <p className="text-xs text-muted">Caixa atual de {due.length} vencidas: {due.map((q) => box(q.id)).join(', ') || '—'}</p>
       </Card>
     </div>
   );
@@ -388,11 +387,45 @@ function Diagnostic() {
   const acc = ratio(answered.filter((a) => a.correct).length, answered.length);
 
   if (me.diagnosticDone) {
+    const bySub = bySubject(answered);
+    const evaluated = Object.keys(bySub);
+    const strengths = evaluated.filter((s) => bySub[s].total >= 3 && bySub[s].pct >= 70);
+    const weak = evaluated.filter((s) => bySub[s].total >= 2 && bySub[s].pct < 60);
+    const notEvaluated = SUBJECTS.filter((s) => !evaluated.includes(s.id));
+    const nameOf = (id: string) => subjectById(id)?.name ?? id;
     return (
-      <Card className="flex flex-col gap-3 p-6">
-        <p className="font-medium">Diagnóstico concluído</p>
-        <p className="text-sm text-muted">Acerto geral de {acc.pct}% nas {answered.length} questões. A trilha foi ajustada com base nos resultados por disciplina.</p>
-        <p className="text-sm">Pontos de atenção: {me.weakSubjects.map((s) => subjectById(s)?.name).join(', ') || 'nenhum identificado'}.</p>
+      <Card className="flex flex-col gap-5 p-6">
+        <div>
+          <p className="font-medium">Diagnóstico concluído</p>
+          <p className="text-sm text-muted">Acerto geral de {acc.pct}% em {answered.length} questões. A trilha foi recalculada a partir destes resultados.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <p className="mb-2 text-sm font-medium">Pontos fortes</p>
+            {strengths.length
+              ? <div className="flex flex-wrap gap-2">{strengths.map((s) => <Pill key={s} tone="mint">{nameOf(s)}</Pill>)}</div>
+              : <p className="text-sm text-muted">Sem amostra suficiente ainda (mínimo de 3 questões com 70% de acerto).</p>}
+          </div>
+          <div>
+            <p className="mb-2 text-sm font-medium">Pontos fracos</p>
+            {weak.length
+              ? <div className="flex flex-wrap gap-2">{weak.map((s) => <Pill key={s} tone="amber">{nameOf(s)}</Pill>)}</div>
+              : <p className="text-sm text-muted">Nenhuma disciplina abaixo de 60% com amostra mínima.</p>}
+          </div>
+        </div>
+        <div>
+          <p className="mb-1 text-sm font-medium">Não avaliadas</p>
+          <p className="text-sm text-muted">Ausência de questões no diagnóstico não significa domínio.</p>
+          <div className="mt-2 flex flex-wrap gap-2">{notEvaluated.map((s) => <Pill key={s.id} tone="neutral">{s.name}</Pill>)}</div>
+        </div>
+        <div>
+          <p className="mb-1 text-sm font-medium">Recomendação</p>
+          <p className="text-sm text-muted">
+            {weak.length
+              ? `Comece pelos pontos fracos (${weak.map(nameOf).join(', ')}) e revise as explicações dos erros antes de avançar.`
+              : 'Mantenha a trilha padrão e amplie a cobertura das disciplinas não avaliadas.'}
+          </p>
+        </div>
       </Card>
     );
   }
@@ -438,29 +471,30 @@ function ImportBank() {
 ]`;
 
   function importNow() {
+    let data: unknown;
     try {
-      const data = JSON.parse(text) as unknown;
-      if (!Array.isArray(data)) throw new Error('O conteúdo precisa ser uma lista JSON.');
-      const valid: Question[] = data.map((raw, i) => {
-        const q = raw as Partial<Question>;
-        if (!q.id || !q.subjectId || !q.topicId || !q.statement || !Array.isArray(q.options) || typeof q.answer !== 'number' || !q.explanation) {
-          throw new Error(`Questão ${i + 1}: faltam campos obrigatórios (id, subjectId, topicId, statement, options, answer, explanation).`);
-        }
-        if (q.options.length < 2 || q.options.length > 5) throw new Error(`Questão ${q.id}: use de 2 a 5 alternativas.`);
-        if (q.answer < 0 || q.answer >= q.options.length) throw new Error(`Questão ${q.id}: o índice da resposta está fora das alternativas.`);
-        if (!subjectById(q.subjectId)) throw new Error(`Questão ${q.id}: disciplina "${q.subjectId}" não existe.`);
-        return { ...q, origin: 'importada' } as Question;
-      });
-      dispatch({ type: 'import-questions', questions: valid });
-      setMessage({ tone: 'ok', text: `${valid.length} ${valid.length === 1 ? 'questão importada' : 'questões importadas'}. O banco agora tem ${allQuestions.length + valid.length} questões.` });
-      setText('');
-    } catch (e) {
-      setMessage({ tone: 'err', text: e instanceof Error ? e.message : 'Não foi possível ler o arquivo.' });
+      data = JSON.parse(text);
+    } catch {
+      setMessage({ tone: 'err', text: 'O texto não é JSON válido. Confira vírgulas e aspas.' });
+      return;
     }
+    if (!Array.isArray(data)) {
+      setMessage({ tone: 'err', text: 'O conteúdo precisa ser uma lista JSON de questões.' });
+      return;
+    }
+    // Mesmas regras dos testes automatizados: nenhuma questão entra se alguma estiver inválida.
+    const { valid, errors } = validateBank(data);
+    if (errors.length) {
+      setMessage({ tone: 'err', text: `Nenhuma questão foi importada. ${errors.length} problema(s): ${errors.slice(0, 3).join(' | ')}${errors.length > 3 ? ' ...' : ''}` });
+      return;
+    }
+    dispatch({ type: 'import-questions', questions: valid.map((q) => ({ ...q, origin: 'importada' as const })) });
+    setMessage({ tone: 'ok', text: `${valid.length} ${valid.length === 1 ? 'questão importada' : 'questões importadas'}. O banco agora tem ${allQuestions.length + valid.length} questões.` });
+    setText('');
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+    <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
       <Card className="flex flex-col gap-4">
         <Field label="Banco de questões em JSON" hint="Cole uma lista de questões. Os ids das disciplinas estão na aba Conteúdo.">
           <textarea className={cn(inputClass, 'min-h-72 font-mono text-xs leading-relaxed')} value={text} onChange={(e) => setText(e.target.value)} placeholder={example} spellCheck={false} />

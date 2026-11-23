@@ -29,6 +29,7 @@ function emptyPerson(id: ProfileId, displayName: string, startNote: string, weak
     notes: {},
     plan: [],
     shareProgress: true,
+    timer: null,
   };
 }
 
@@ -59,6 +60,10 @@ export type Action =
   | { type: 'save-essay'; essay: Essay }
   | { type: 'set-availability'; date?: string; minutes: number }
   | { type: 'remove-override'; date: string }
+  | { type: 'timer-start'; activityId: string; now: number }
+  | { type: 'timer-pause'; now: number }
+  | { type: 'timer-finish'; now: number }
+  | { type: 'timer-discard' }
   | { type: 'replan' }
   | { type: 'add-goal'; goal: SharedGoal }
   | { type: 'delete-goal'; id: string }
@@ -146,6 +151,50 @@ function reducer(state: AppState, action: Action): AppState {
           : { ...p, availability: { ...p.availability, defaultMinutes: action.minutes } };
         return replan(rebuild(next), todayISO());
       });
+    }
+
+    case 'timer-start': {
+      if (!id) return state;
+      return updatePerson(state, id, (p) => {
+        const t = p.timer;
+        if (t && t.activityId !== action.activityId) return p; // um cronômetro por vez
+        if (t && t.startedAt !== null) return p; // já está rodando
+        return { ...p, timer: { activityId: action.activityId, accumulatedMs: t?.accumulatedMs ?? 0, startedAt: action.now } };
+      });
+    }
+
+    case 'timer-pause': {
+      if (!id) return state;
+      return updatePerson(state, id, (p) => {
+        const t = p.timer;
+        if (!t || t.startedAt === null) return p;
+        return { ...p, timer: { ...t, accumulatedMs: t.accumulatedMs + (action.now - t.startedAt), startedAt: null } };
+      });
+    }
+
+    case 'timer-finish': {
+      if (!id) return state;
+      return updatePerson(state, id, (p) => {
+        const t = p.timer;
+        if (!t) return p;
+        const elapsed = t.accumulatedMs + (t.startedAt !== null ? action.now - t.startedAt : 0);
+        const minutes = Math.max(0, Math.round(elapsed / 60000));
+        const activity = p.plan.find((a) => a.id === t.activityId);
+        const alreadyLogged = p.studyLog.some((l) => l.activityId === t.activityId);
+        return {
+          ...p,
+          timer: null,
+          plan: p.plan.map((a) => (a.id === t.activityId ? { ...a, status: 'done' as const } : a)),
+          studyLog: alreadyLogged || !activity
+            ? p.studyLog
+            : [...p.studyLog, { activityId: t.activityId, date: todayISO(), minutes, subjectId: activity.subjectId }],
+        };
+      });
+    }
+
+    case 'timer-discard': {
+      if (!id) return state;
+      return updatePerson(state, id, (p) => ({ ...p, timer: null }));
     }
 
     case 'remove-override': {
