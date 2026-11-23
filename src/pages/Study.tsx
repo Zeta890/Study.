@@ -460,6 +460,24 @@ function ImportBank() {
   const { dispatch, allQuestions } = useStore();
   const [text, setText] = useState('');
   const [message, setMessage] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+
+  // Lê o arquivo .json escolhido e preenche a caixa de texto para conferência antes de importar.
+  async function onFile(file: File | undefined) {
+    if (!file) return;
+    if (!/\.json$/i.test(file.name) && file.type !== 'application/json') {
+      setMessage({ tone: 'err', text: 'Escolha um arquivo .json.' });
+      return;
+    }
+    try {
+      const content = await file.text();
+      setText(content);
+      setFileName(file.name);
+      setMessage({ tone: 'ok', text: `Arquivo "${file.name}" carregado. Confira e clique em Importar questões.` });
+    } catch {
+      setMessage({ tone: 'err', text: 'Não foi possível ler o arquivo. Tente de novo ou cole o conteúdo.' });
+    }
+  }
 
   const example = `[
   {
@@ -476,7 +494,8 @@ function ImportBank() {
   function importNow() {
     let data: unknown;
     try {
-      data = JSON.parse(text);
+      // Remove BOM e espaços: arquivos salvos pelo Windows costumam começar com BOM e quebram o JSON.parse.
+      data = JSON.parse(text.replace(/^﻿/, '').trim());
     } catch {
       setMessage({ tone: 'err', text: 'O texto não é JSON válido. Confira vírgulas e aspas.' });
       return;
@@ -486,12 +505,14 @@ function ImportBank() {
       return;
     }
     // Mesmas regras dos testes automatizados: nenhuma questão entra se alguma estiver inválida.
-    const { valid, errors } = validateBank(data);
+    // Questões vindas de arquivo ou colagem são sempre marcadas como importadas, sem depender do campo no JSON.
+    const marked = data.map((q) => (q && typeof q === 'object' ? { ...q, origin: 'importada' } : q));
+    const { valid, errors } = validateBank(marked);
     if (errors.length) {
       setMessage({ tone: 'err', text: `Nenhuma questão foi importada. ${errors.length} problema(s): ${errors.slice(0, 3).join(' | ')}${errors.length > 3 ? ' ...' : ''}` });
       return;
     }
-    dispatch({ type: 'import-questions', questions: valid.map((q) => ({ ...q, origin: 'importada' as const })) });
+    dispatch({ type: 'import-questions', questions: valid });
     setMessage({ tone: 'ok', text: `${valid.length} ${valid.length === 1 ? 'questão importada' : 'questões importadas'}. O banco agora tem ${allQuestions.length + valid.length} questões.` });
     setText('');
   }
@@ -499,8 +520,18 @@ function ImportBank() {
   return (
     <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
       <Card className="flex flex-col gap-4">
-        <Field label="Banco de questões em JSON" hint="Cole uma lista de questões. Os ids das disciplinas estão na aba Conteúdo.">
-          <textarea className={cn(inputClass, 'min-h-72 font-mono text-xs leading-relaxed')} value={text} onChange={(e) => setText(e.target.value)} placeholder={example} spellCheck={false} />
+        <Field label="Enviar arquivo JSON" hint="Escolha um arquivo .json com a lista de questões. Ele é lido aqui no navegador e nada é enviado a servidores.">
+          <input
+            type="file"
+            accept=".json,application/json"
+            aria-label="Escolher arquivo JSON de questões"
+            onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ''; }}
+            className="text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-purple file:px-3 file:py-2 file:text-white"
+          />
+          {fileName && <span className="text-xs text-muted">Arquivo: {fileName}</span>}
+        </Field>
+        <Field label="Ou cole o JSON aqui" hint="Cole uma lista de questões. Os ids das disciplinas estão na aba Conteúdo.">
+          <textarea className={cn(inputClass, 'min-h-72 font-mono text-xs leading-relaxed')} value={text} onChange={(e) => { setText(e.target.value); setFileName(null); }} placeholder={example} spellCheck={false} />
         </Field>
         {message && (
           <p role="status" className={cn('rounded-xl px-4 py-3 text-sm', message.tone === 'ok' ? 'bg-mint/10 text-mint' : 'bg-[#ff8a8a]/10 text-[#ffb3b3]')}>
