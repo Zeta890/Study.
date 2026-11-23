@@ -7,17 +7,19 @@ import { DIAGNOSTIC_IDS } from '../lib/bank';
 import { pickNext, dueReviews, bySubject, ratio } from '../lib/stats';
 import { todayISO } from '../lib/dates';
 import { validateBank } from '../lib/validate';
+import Tutor from '../components/Tutor';
 import { Bar, Button, Card, Empty, Field, Pill, inputClass } from '../components/ui';
 import { PageHeader } from '../components/Layout';
 import { cn } from '../components/cn';
 import type { AnswerRecord, AreaId, Question, TopicStatus, Subject } from '../lib/types';
 
-type Tab = 'conteudo' | 'questoes' | 'revisao' | 'diagnostico' | 'importar';
+type Tab = 'conteudo' | 'questoes' | 'revisao' | 'diagnostico' | 'tutor' | 'importar';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'conteudo', label: 'Conteúdo' },
   { id: 'questoes', label: 'Questões' },
   { id: 'revisao', label: 'Revisão' },
   { id: 'diagnostico', label: 'Diagnóstico' },
+  { id: 'tutor', label: 'Tutor' },
   { id: 'importar', label: 'Importar' },
 ];
 
@@ -57,6 +59,7 @@ export default function Study() {
       {tab === 'questoes' && <Practice />}
       {tab === 'revisao' && <Reviews />}
       {tab === 'diagnostico' && <Diagnostic />}
+      {tab === 'tutor' && <Tutor />}
       {tab === 'importar' && <ImportBank />}
     </div>
   );

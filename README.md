@@ -43,21 +43,3 @@ src/
   components/ layout (sidebar, topbar, navegação móvel) e componentes de UI
   pages/      Login, Hoje, Plano, Estudo, Simulados, Progresso, Casal, Ajustes
 ```
-
-## Auditoria técnica (branch fix/auditoria-missao-11)
-
-Verificado nesta branch:
-- `npm test`: 35 testes (datas no fuso America/Cuiaba, contador antes e depois de 20/12 às 13:00, cronograma que não ultrapassa a disponibilidade, replanejamento idempotente, pontuação oficial com pesos 1 / 1 / 1,75, composição 15 + 15 + 40, validação do banco, regra de domínio com no mínimo 5 respostas).
-- `npm run build`: compilação TypeScript estrita e build de produção.
-- Largura de 320 a 1440 px, em 9 rotas e nos dois temas (126 combinações) sem estouro horizontal e sem erro de console, medido em Chromium headless.
-- Fluxo ponta a ponta: concluir atividade, diagnóstico com análise por disciplina, criação de meta, simulado parcial, plano.
-
-Corrigido: importação de questões usa a mesma validação dos testes; tarefas que não couberam no replanejamento aparecem como "Não acomodada"; cronômetro de estudo registra o tempo real; simulado monta a distribuição oficial e bloqueia o completo quando o banco não tem questões suficientes; tentativa fica salva no navegador; redação com linhas numeradas e rascunho automático; `vercel.json` para reescrever rotas como /ajustes.
-
-Não verificado:
-- Produção (study-blush-alpha.vercel.app): não foi possível confirmar que este repositório é o que alimenta o projeto na Vercel.
-- Horário da prova: 13:00 é um valor provisório até conferir o cartão de inscrição.
-- Questões: o banco de exemplo não é da Selecon e não deve ser usado como simulado oficial.
-- Percentuais de aprovação não são exibidos sem base estatística.
-
-Pendente (exige decisão): autenticação e banco de dados compartilhado (Supabase, possível custo); correção de redação e tutor com IA (exige chave de API configurada no servidor); mais questões validadas com o edital.
