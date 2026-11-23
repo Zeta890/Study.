@@ -62,6 +62,19 @@ describe('validação do banco de questões', () => {
     const { errors } = validateBank(SAMPLE_QUESTIONS);
     expect(errors).toEqual([]);
   });
+  it('as 60 questões enviadas pelo usuário passam na validação e têm ids únicos', async () => {
+    const { validateBank } = await import('../validate');
+    const { SELECON_INEDITAS } = await import('../bank-selecon');
+    const { valid, errors } = validateBank(SELECON_INEDITAS);
+    expect(errors).toEqual([]);
+    expect(valid).toHaveLength(60);
+    expect(new Set(SELECON_INEDITAS.map((q) => q.id)).size).toBe(60);
+  });
+  it('nenhum id de exemplo se repete nas questões enviadas', async () => {
+    const { SELECON_INEDITAS } = await import('../bank-selecon');
+    const ids = new Set(SAMPLE_QUESTIONS.map((q) => q.id));
+    expect(SELECON_INEDITAS.some((q) => ids.has(q.id))).toBe(false);
+  });
   it('rejeita alternativas duplicadas', async () => {
     const { validateQuestion } = await import('../validate');
     const errs = validateQuestion({ ...SAMPLE_QUESTIONS[0], options: ['a', 'a', 'b', 'c'] });
