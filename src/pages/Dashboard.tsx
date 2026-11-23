@@ -8,6 +8,7 @@ import { missionFor, remainingNetMinutes, activityKindLabel } from '../lib/plan'
 import { accuracy, executionRate, estimatedScore, masteredSubjects, needsReview, dueReviews, studiedMinutes } from '../lib/stats';
 import { activityGoal, activityHref, activityTitle, coupleConsistency } from '../lib/activity';
 import { Bar, Button, Card, Empty, Pill, Ring, SectionTitle } from '../components/ui';
+import { StudyTimer } from '../components/StudyTimer';
 import type { Activity, PersonData, ProfileId } from '../lib/types';
 
 const KIND_COLOR: Record<Activity['kind'], string> = {
@@ -64,7 +65,7 @@ export default function Dashboard() {
         todayLabel={formatDate(today)}
       />
 
-      <div className="grid gap-6 xl:grid-cols-3">
+      <div className="grid min-w-0 grid-cols-1 gap-6 xl:grid-cols-3">
         <div className="flex min-w-0 flex-col gap-6 xl:col-span-2">
           <Card as="section" className="p-6">
             <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
@@ -211,7 +212,7 @@ function Hero({
 
 function Count({ value, label }: { value: number; label: string }) {
   return (
-    <div className="min-w-[88px] px-5 py-4 text-center">
+    <div className="min-w-[68px] px-3 py-3 text-center sm:px-4 lg:min-w-[88px] lg:px-5 lg:py-4">
       <p className="num text-3xl font-semibold tracking-tight md:text-4xl">{String(value).padStart(2, '0')}</p>
       <p className="mt-1 text-xs text-muted">{label}</p>
     </div>
@@ -258,7 +259,7 @@ function MissionItem({ activity: a, index, onDispatch }: { activity: Activity; i
             onDispatch(
               done
                 ? { type: 'undo-activity', activityId: a.id }
-                : { type: 'complete-activity', activityId: a.id, minutes: a.minutes, subjectId: a.subjectId, date: a.date },
+                : { type: 'complete-activity', activityId: a.id, minutes: 0, subjectId: a.subjectId, date: a.date },
             )
           }
           className="mt-0.5 shrink-0 text-muted transition-colors hover:text-mint"
@@ -282,12 +283,15 @@ function MissionItem({ activity: a, index, onDispatch }: { activity: Activity; i
           </div>
         </div>
       </div>
-      <Link
-        to={activityHref(a)}
-        className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-line px-3.5 py-2 text-sm font-medium hover:bg-surface hover:text-lilac"
-      >
-        Iniciar estudo
-      </Link>
+      <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+        <Link
+          to={activityHref(a)}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-line px-3.5 py-2 text-sm font-medium hover:bg-surface hover:text-lilac"
+        >
+          Iniciar estudo
+        </Link>
+        <StudyTimer activity={a} done={done} />
+      </div>
     </li>
   );
 }

@@ -1,8 +1,9 @@
-import { useEffect, useState, type ReactNode } from 'react';
-import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { BarChart3, BookOpen, CalendarDays, Heart, LayoutDashboard, LogOut, Moon, Search, Settings, Sun, Target } from 'lucide-react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { BarChart3, BookOpen, CalendarDays, Heart, LayoutDashboard, LogOut, MoreHorizontal, Moon, Search, Settings, Sun, Target, X } from 'lucide-react';
 import { useStore } from '../lib/store';
 import { executionRate } from '../lib/stats';
+import { todayISO } from '../lib/dates';
 import { Ring } from './ui';
 import { cn } from './cn';
 
@@ -16,11 +17,14 @@ const NAV = [
   { to: '/ajustes', label: 'Ajustes', icon: Settings },
 ];
 
+// No celular, as quatro primeiras seções ficam na barra; o resto abre em "Mais".
+const MOBILE_MAIN = NAV.slice(0, 4);
+const MOBILE_MORE = NAV.slice(4);
+
 function useTheme() {
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    const saved = localStorage.getItem('missao11:theme');
-    return saved === 'light' ? 'light' : 'dark';
-  });
+  const [theme, setTheme] = useState<'dark' | 'light'>(() =>
+    localStorage.getItem('missao11:theme') === 'light' ? 'light' : 'dark',
+  );
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem('missao11:theme', theme);
@@ -34,27 +38,29 @@ export default function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [query, setQuery] = useState('');
-  const overall = me ? executionRate(me) : { pct: 0 };
+  const [moreOpen, setMoreOpen] = useState(false);
+  const overall = me ? executionRate(me, todayISO()) : { pct: 0 };
 
   useEffect(() => {
     document.title = `MISSÃO 11 — ${me?.displayName ?? ''}`;
-  }, [me]);
+    setMoreOpen(false);
+  }, [me, location.pathname]);
 
-  function submitSearch(e: React.FormEvent) {
+  function submitSearch(e: FormEvent) {
     e.preventDefault();
-    navigate(`/estudo?q=${encodeURIComponent(query.trim())}`);
+    if (query.trim()) navigate(`/estudo?q=${encodeURIComponent(query.trim())}`);
   }
 
   return (
     <div className="ambient min-h-screen">
       <div className="flex min-h-screen">
         {/* Sidebar fixa no desktop */}
-        <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r border-line bg-surface/70 p-4 lg:flex">
+        <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r border-line bg-surface/70 p-4 lg:flex">
           <div className="mb-8 flex items-center gap-3 px-2">
             <Logo />
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-semibold tracking-tight">MISSÃO 11</p>
-              <p className="text-xs text-muted">Cada questão nos aproxima</p>
+              <p className="truncate text-xs text-muted">Nossa jornada até a aprovação</p>
             </div>
           </div>
           <nav className="flex flex-col gap-1" aria-label="Principal">
@@ -85,7 +91,7 @@ export default function Layout() {
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Buscar assunto ou questão"
+                placeholder="Buscar assunto"
                 aria-label="Buscar assunto"
                 className="w-full rounded-xl border border-line bg-surface-2 py-2 pl-9 pr-3 text-sm placeholder:text-muted focus:border-lilac focus:outline-none"
               />
@@ -114,27 +120,64 @@ export default function Layout() {
             </div>
           </header>
 
-          <main key={location.pathname} className="flex-1 px-4 pb-28 pt-6 md:px-8 lg:pb-12">
-            <div className="mx-auto w-full max-w-6xl animate-[fadeIn_.35s_ease-out]">
+          <main className="flex-1 px-4 pb-28 pt-6 md:px-8 lg:pb-12">
+            <div key={location.pathname} className="mx-auto w-full min-w-0 max-w-6xl animate-[fadeIn_.35s_ease-out]">
               <Outlet />
             </div>
           </main>
 
+          {/* Menu "Mais" no celular */}
+          {moreOpen && (
+            <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="Mais seções">
+              <button className="absolute inset-0 bg-black/50" onClick={() => setMoreOpen(false)} aria-label="Fechar menu" />
+              <div className="glass absolute inset-x-0 bottom-0 rounded-t-3xl border-t border-line p-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="font-semibold">Mais seções</p>
+                  <button onClick={() => setMoreOpen(false)} className="rounded-lg p-2 text-muted hover:text-text" aria-label="Fechar">
+                    <X size={18} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {MOBILE_MORE.map((n) => (
+                    <NavLink
+                      key={n.to}
+                      to={n.to}
+                      className={({ isActive }) =>
+                        cn('flex flex-col items-center gap-2 rounded-2xl border border-line py-4 text-xs font-medium', isActive ? 'bg-purple/15 text-lilac' : 'text-muted')
+                      }
+                    >
+                      <n.icon size={20} aria-hidden />
+                      {n.label}
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Navegação inferior no celular */}
           <nav className="glass fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-line pb-[env(safe-area-inset-bottom)] lg:hidden" aria-label="Principal móvel">
-            {NAV.slice(0, 5).map((n) => (
+            {MOBILE_MAIN.map((n) => (
               <NavLink
                 key={n.to}
                 to={n.to}
                 end={n.end}
                 className={({ isActive }) =>
-                  cn('flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium', isActive ? 'text-lilac' : 'text-muted')
+                  cn('flex min-h-14 flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium', isActive ? 'text-lilac' : 'text-muted')
                 }
               >
                 <n.icon size={19} aria-hidden />
                 {n.label}
               </NavLink>
             ))}
+            <button
+              onClick={() => setMoreOpen((v) => !v)}
+              aria-expanded={moreOpen}
+              className={cn('flex min-h-14 flex-col items-center justify-center gap-1 py-2 text-[11px] font-medium', moreOpen || MOBILE_MORE.some((n) => location.pathname.startsWith(n.to)) ? 'text-lilac' : 'text-muted')}
+            >
+              <MoreHorizontal size={19} aria-hidden />
+              Mais
+            </button>
           </nav>
         </div>
       </div>
@@ -149,7 +192,7 @@ function SideLink({ to, label, icon: Icon, end }: { to: string; label: string; i
       end={end}
       className={({ isActive }) =>
         cn(
-          'group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors',
+          'relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors',
           isActive ? 'bg-purple/15 text-text' : 'text-muted hover:bg-surface-2 hover:text-text',
         )
       }
@@ -182,12 +225,12 @@ function Logo({ small }: { small?: boolean }) {
 
 export function PageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
   return (
-    <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
-      <div>
+    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div className="min-w-0">
         <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">{title}</h1>
-        {description && <p className="mt-1 max-w-2xl text-sm text-muted">{description}</p>}
+        {description && <p className="mt-1 max-w-2xl text-sm leading-relaxed text-muted">{description}</p>}
       </div>
-      {actions}
+      {actions && <div className="shrink-0">{actions}</div>}
     </div>
   );
 }

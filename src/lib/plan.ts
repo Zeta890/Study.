@@ -10,9 +10,6 @@ const BASE_SLOTS = [
   { key: 'review', minutes: 35 },
 ] as const;
 
-// Reserva de carga por dia para absorver tarefas replanejadas, sem empilhar tudo em um dia.
-const RESERVA_MIN = 30;
-
 const OTHER_SUBJECTS = ['info', 'leg', 'mt', 'etica', 'relint'];
 const ESP_TOPICS = SUBJECTS.find((s) => s.id === 'esp')!.topics;
 
@@ -104,14 +101,15 @@ export function remainingNetMinutes(person: PersonData, today: string = todayISO
     .reduce((s, d) => s + availabilityFor(person, d), 0);
 }
 
-// Replanejamento: tarefas pendentes de dias passados são divididas em partes e
-// distribuídas para os dias futuros com menos carga. Nenhum dia recebe tudo de uma vez.
+// Replanejamento: tarefas pendentes de dias passados são divididas em partes e distribuídas
+// para os dias futuros com menos carga. A soma de cada dia nunca passa da disponibilidade.
+// O que não cabe nos dias restantes vira "não acomodada", com motivo, em vez de estourar o dia.
 export function replan(person: PersonData, today: string = todayISO()): PersonData {
   const overdue = person.plan.filter((a) => a.status === 'pending' && a.date < today);
   if (overdue.length === 0) return person;
 
   const keep = person.plan.filter((a) => !(a.status === 'pending' && a.date < today));
-  // O último dia é de revisão leve: só recebe carga se não houver outro.
+  // O último dia é de revisão leve: só recebe carga se não houver outro dia.
   const futureDays = dateRange(today, EXAM.prepEnd);
   const pool = futureDays.filter((d) => d !== EXAM.prepEnd);
   const days = pool.length ? pool : futureDays;
@@ -120,6 +118,7 @@ export function replan(person: PersonData, today: string = todayISO()): PersonDa
   for (const a of keep) load.set(a.date, (load.get(a.date) ?? 0) + a.minutes);
 
   const moved: Activity[] = [];
+  const unscheduled: Activity[] = [];
   for (const a of overdue) {
     const area = subjectById(a.subjectId)?.area ?? 'basicos';
     const factors = [
@@ -132,11 +131,11 @@ export function replan(person: PersonData, today: string = todayISO()): PersonDa
     let remaining = a.minutes;
     let part = 0;
     while (remaining > 0) {
-      const open = days.filter((d) => (load.get(d) ?? 0) < availabilityFor(person, d) + RESERVA_MIN);
-      const candidates = open.length ? open : days;
-      const day = candidates.reduce((best, d) => ((load.get(d) ?? 0) < (load.get(best) ?? 0) ? d : best), candidates[0]);
-      const room = availabilityFor(person, day) + RESERVA_MIN - (load.get(day) ?? 0);
-      const chunk = open.length ? Math.min(remaining, Math.max(5, Math.floor(room / 5) * 5)) : remaining;
+      const open = days.filter((d) => (load.get(d) ?? 0) < availabilityFor(person, d));
+      if (open.length === 0) break;
+      const day = open.reduce((best, d) => ((load.get(d) ?? 0) < (load.get(best) ?? 0) ? d : best), open[0]);
+      const room = availabilityFor(person, day) - (load.get(day) ?? 0);
+      const chunk = Math.min(remaining, room);
       load.set(day, (load.get(day) ?? 0) + chunk);
       part += 1;
       moved.push({
@@ -144,14 +143,24 @@ export function replan(person: PersonData, today: string = todayISO()): PersonDa
         id: `${day}-moved-${a.id}-${part}`,
         date: day,
         minutes: chunk,
-        reason: open.length
-          ? `Replanejado de ${formatDate(a.date)}${remaining > chunk || part > 1 ? ' (em partes)' : ''}: ${factors.join('; ')}.`
-          : `Replanejado de ${formatDate(a.date)}, mas sem tempo livre nos próximos dias: priorizar no bloco de revisão da reta final.`,
+        reason: `Replanejado de ${formatDate(a.date)}${remaining > chunk || part > 1 ? ' (em partes)' : ''}: ${factors.join('; ')}.`,
       });
       remaining -= chunk;
     }
+    if (remaining > 0) {
+      unscheduled.push({
+        ...a,
+        id: `${a.id}-unscheduled`,
+        minutes: remaining,
+        status: 'unscheduled',
+        reason: `Não acomodada: não há tempo livre nos dias restantes. Priorize esta revisão ou aumente a disponibilidade.`,
+      });
+    }
   }
-  return { ...person, plan: [...keep, ...moved].sort((x, y) => x.date.localeCompare(y.date)) };
+  return {
+    ...person,
+    plan: [...keep, ...moved, ...unscheduled].sort((x, y) => x.date.localeCompare(y.date)),
+  };
 }
 
 function daysBetween(a: string, b: string): number {

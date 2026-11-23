@@ -30,7 +30,7 @@ Em hospedagem estática, configure o fallback de SPA para `index.html` (as rotas
 - **Autenticação e banco**: os dados ficam no `localStorage` do navegador (`src/lib/store.tsx`). A integração com Supabase Auth e PostgreSQL ainda não foi feita. O estado está isolado no store para facilitar essa troca.
 - **Professor de IA**: não implementado. Precisa de um endpoint de backend, com a chave de API fora do frontend.
 - **Conteúdo do edital**: os nomes das disciplinas de Básicos e Gerais seguem o resumo do Anexo V. Os 16 itens de Específicos vêm do plano do projeto e não foram conferidos literalmente com o edital; o resumo consultado cita 13 itens. Confira em `src/lib/content.ts` antes de usar como roteiro oficial.
-- **Questões**: o app traz apenas 14 questões de exemplo, criadas para testar o fluxo. Não são questões da Selecon. Importe o seu banco pela aba Estudo > Importar.
+- **Questões**: o app traz 27 questões de exemplo, criadas para testar o fluxo, e 60 questões inéditas inspiradas no estilo Selecon (arquivo enviado pelo usuário, em src/lib/bank-selecon.ts). Nenhuma é questão oficial da Selecon, e as 60 precisam de revisão editorial antes de uso oficial. Com elas, Gerais tem 12 e Específicos tem 20 questões, por isso o simulado completo ainda não fecha 15/15/40. Importe o seu banco pela aba Estudo > Importar, enviando um arquivo .json ou colando o conteúdo.
 - **Horário da prova**: 13:00 é uma referência. O horário exato vem no Cartão de Confirmação. Ajuste `EXAM.startTime` em `src/lib/content.ts`.
 - **Contador**: mostra o tempo exato até a prova, então no dia 23/11 aparecem 26 dias e 23 horas. Contar dias de calendário daria 27.
 - **Componentes**: a interface usa componentes próprios em Tailwind, não shadcn/ui, para manter o bundle enxuto.

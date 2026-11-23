@@ -78,7 +78,7 @@ export default function Progress() {
         </div>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2">
         <Card as="section" className="p-6">
           <SectionTitle title="Aproveitamento por área" hint="Acertos sobre o total respondido em cada área" />
           <div className="h-64 w-full">

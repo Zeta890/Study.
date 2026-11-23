@@ -6,17 +6,20 @@ import { AREAS, SUBJECTS, subjectById } from '../lib/content';
 import { DIAGNOSTIC_IDS } from '../lib/bank';
 import { pickNext, dueReviews, bySubject, ratio } from '../lib/stats';
 import { todayISO } from '../lib/dates';
+import { validateBank } from '../lib/validate';
+import Tutor from '../components/Tutor';
 import { Bar, Button, Card, Empty, Field, Pill, inputClass } from '../components/ui';
 import { PageHeader } from '../components/Layout';
 import { cn } from '../components/cn';
 import type { AnswerRecord, AreaId, Question, TopicStatus, Subject } from '../lib/types';
 
-type Tab = 'conteudo' | 'questoes' | 'revisao' | 'diagnostico' | 'importar';
+type Tab = 'conteudo' | 'questoes' | 'revisao' | 'diagnostico' | 'tutor' | 'importar';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'conteudo', label: 'Conteúdo' },
   { id: 'questoes', label: 'Questões' },
   { id: 'revisao', label: 'Revisão' },
   { id: 'diagnostico', label: 'Diagnóstico' },
+  { id: 'tutor', label: 'Tutor' },
   { id: 'importar', label: 'Importar' },
 ];
 
@@ -35,7 +38,7 @@ export default function Study() {
         title="Estudo"
         description="Conteúdo do edital, questões, revisão espaçada e diagnóstico. Os assuntos seguem o Anexo V; confira os itens de Específicos antes de usar como roteiro oficial."
       />
-      <div role="tablist" aria-label="Seções de estudo" className="scroll-thin flex gap-1 overflow-x-auto rounded-2xl border border-line bg-surface p-1">
+      <div role="tablist" aria-label="Seções de estudo" className="flex flex-wrap gap-1 rounded-2xl border border-line bg-surface p-1">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -56,6 +59,7 @@ export default function Study() {
       {tab === 'questoes' && <Practice />}
       {tab === 'revisao' && <Reviews />}
       {tab === 'diagnostico' && <Diagnostic />}
+      {tab === 'tutor' && <Tutor />}
       {tab === 'importar' && <ImportBank />}
     </div>
   );
@@ -83,7 +87,7 @@ function Content() {
   };
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+    <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
       <div className="flex flex-col gap-6">
         {groups.map((g) => (
           <section key={g.area} aria-label={g.label} className="flex flex-col gap-2">
@@ -278,14 +282,27 @@ function Practice() {
   const [params] = useSearchParams();
   const [subjectId, setSubjectId] = useState<string>(params.get('subject') ?? 'lp');
   const pool = allQuestions.filter((q) => q.subjectId === subjectId);
-  const pick = (sid: string) => (me ? pickNext(allQuestions, me, { subjectId: sid }) : undefined);
+  const pick = (sid: string, exclude?: string) => (me ? pickNext(allQuestions, me, { subjectId: sid, exclude }) : undefined);
   // A questão atual fica fixa até o aluno avançar, para a explicação não sumir.
   const [question, setQuestion] = useState<Question | undefined>(() => pick(subjectId));
   if (!me) return null;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
-      <Card className="flex flex-col gap-2 p-3">
+    <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
+      {/* No celular, a lista vira um seletor para a pergunta aparecer logo na tela. */}
+      <label className="flex flex-col gap-1.5 lg:hidden">
+        <span className="text-xs text-muted">Disciplina</span>
+        <select
+          className={inputClass}
+          value={subjectId}
+          onChange={(e) => { setSubjectId(e.target.value); setQuestion(pick(e.target.value)); }}
+        >
+          {SUBJECTS.map((s) => (
+            <option key={s.id} value={s.id}>{s.name} ({allQuestions.filter((q) => q.subjectId === s.id).length})</option>
+          ))}
+        </select>
+      </label>
+      <Card className="hidden flex-col gap-2 p-3 lg:flex">
         <p className="px-2 pb-1 text-xs text-muted">Disciplina</p>
         {SUBJECTS.map((s) => {
           const n = allQuestions.filter((q) => q.subjectId === s.id).length;
@@ -316,7 +333,7 @@ function Practice() {
             question={question}
             mode="treino"
             onAnswer={() => undefined}
-            onNext={() => setQuestion(pick(subjectId))}
+            onNext={() => setQuestion(pick(subjectId, question?.id))}
           />
         ) : null}
       </div>
@@ -334,10 +351,9 @@ function Reviews() {
   const [question, setQuestion] = useState<Question | undefined>(() => dueList()[0]);
   const due = dueList();
   if (!me) return null;
-  const box = (qid: string) => me.reviews[qid]?.box ?? 0;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_280px]">
+    <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
       <div className="flex flex-col gap-4">
         {due.length === 0 || !question ? (
           <Empty
@@ -369,7 +385,6 @@ function Reviews() {
             );
           })}
         </ul>
-        <p className="text-xs text-muted">Caixa atual de {due.length} vencidas: {due.map((q) => box(q.id)).join(', ') || '—'}</p>
       </Card>
     </div>
   );
@@ -388,11 +403,45 @@ function Diagnostic() {
   const acc = ratio(answered.filter((a) => a.correct).length, answered.length);
 
   if (me.diagnosticDone) {
+    const bySub = bySubject(answered);
+    const evaluated = Object.keys(bySub);
+    const strengths = evaluated.filter((s) => bySub[s].total >= 3 && bySub[s].pct >= 70);
+    const weak = evaluated.filter((s) => bySub[s].total >= 2 && bySub[s].pct < 60);
+    const notEvaluated = SUBJECTS.filter((s) => !evaluated.includes(s.id));
+    const nameOf = (id: string) => subjectById(id)?.name ?? id;
     return (
-      <Card className="flex flex-col gap-3 p-6">
-        <p className="font-medium">Diagnóstico concluído</p>
-        <p className="text-sm text-muted">Acerto geral de {acc.pct}% nas {answered.length} questões. A trilha foi ajustada com base nos resultados por disciplina.</p>
-        <p className="text-sm">Pontos de atenção: {me.weakSubjects.map((s) => subjectById(s)?.name).join(', ') || 'nenhum identificado'}.</p>
+      <Card className="flex flex-col gap-5 p-6">
+        <div>
+          <p className="font-medium">Diagnóstico concluído</p>
+          <p className="text-sm text-muted">Acerto geral de {acc.pct}% em {answered.length} questões. A trilha foi recalculada a partir destes resultados.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <p className="mb-2 text-sm font-medium">Pontos fortes</p>
+            {strengths.length
+              ? <div className="flex flex-wrap gap-2">{strengths.map((s) => <Pill key={s} tone="mint">{nameOf(s)}</Pill>)}</div>
+              : <p className="text-sm text-muted">Sem amostra suficiente ainda (mínimo de 3 questões com 70% de acerto).</p>}
+          </div>
+          <div>
+            <p className="mb-2 text-sm font-medium">Pontos fracos</p>
+            {weak.length
+              ? <div className="flex flex-wrap gap-2">{weak.map((s) => <Pill key={s} tone="amber">{nameOf(s)}</Pill>)}</div>
+              : <p className="text-sm text-muted">Nenhuma disciplina abaixo de 60% com amostra mínima.</p>}
+          </div>
+        </div>
+        <div>
+          <p className="mb-1 text-sm font-medium">Não avaliadas</p>
+          <p className="text-sm text-muted">Ausência de questões no diagnóstico não significa domínio.</p>
+          <div className="mt-2 flex flex-wrap gap-2">{notEvaluated.map((s) => <Pill key={s.id} tone="neutral">{s.name}</Pill>)}</div>
+        </div>
+        <div>
+          <p className="mb-1 text-sm font-medium">Recomendação</p>
+          <p className="text-sm text-muted">
+            {weak.length
+              ? `Comece pelos pontos fracos (${weak.map(nameOf).join(', ')}) e revise as explicações dos erros antes de avançar.`
+              : 'Mantenha a trilha padrão e amplie a cobertura das disciplinas não avaliadas.'}
+          </p>
+        </div>
       </Card>
     );
   }
@@ -424,6 +473,24 @@ function ImportBank() {
   const { dispatch, allQuestions } = useStore();
   const [text, setText] = useState('');
   const [message, setMessage] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+
+  // Lê o arquivo .json escolhido e preenche a caixa de texto para conferência antes de importar.
+  async function onFile(file: File | undefined) {
+    if (!file) return;
+    if (!/\.json$/i.test(file.name) && file.type !== 'application/json') {
+      setMessage({ tone: 'err', text: 'Escolha um arquivo .json.' });
+      return;
+    }
+    try {
+      const content = await file.text();
+      setText(content);
+      setFileName(file.name);
+      setMessage({ tone: 'ok', text: `Arquivo "${file.name}" carregado. Confira e clique em Importar questões.` });
+    } catch {
+      setMessage({ tone: 'err', text: 'Não foi possível ler o arquivo. Tente de novo ou cole o conteúdo.' });
+    }
+  }
 
   const example = `[
   {
@@ -438,32 +505,46 @@ function ImportBank() {
 ]`;
 
   function importNow() {
+    let data: unknown;
     try {
-      const data = JSON.parse(text) as unknown;
-      if (!Array.isArray(data)) throw new Error('O conteúdo precisa ser uma lista JSON.');
-      const valid: Question[] = data.map((raw, i) => {
-        const q = raw as Partial<Question>;
-        if (!q.id || !q.subjectId || !q.topicId || !q.statement || !Array.isArray(q.options) || typeof q.answer !== 'number' || !q.explanation) {
-          throw new Error(`Questão ${i + 1}: faltam campos obrigatórios (id, subjectId, topicId, statement, options, answer, explanation).`);
-        }
-        if (q.options.length < 2 || q.options.length > 5) throw new Error(`Questão ${q.id}: use de 2 a 5 alternativas.`);
-        if (q.answer < 0 || q.answer >= q.options.length) throw new Error(`Questão ${q.id}: o índice da resposta está fora das alternativas.`);
-        if (!subjectById(q.subjectId)) throw new Error(`Questão ${q.id}: disciplina "${q.subjectId}" não existe.`);
-        return { ...q, origin: 'importada' } as Question;
-      });
-      dispatch({ type: 'import-questions', questions: valid });
-      setMessage({ tone: 'ok', text: `${valid.length} ${valid.length === 1 ? 'questão importada' : 'questões importadas'}. O banco agora tem ${allQuestions.length + valid.length} questões.` });
-      setText('');
-    } catch (e) {
-      setMessage({ tone: 'err', text: e instanceof Error ? e.message : 'Não foi possível ler o arquivo.' });
+      // Remove BOM e espaços: arquivos salvos pelo Windows costumam começar com BOM e quebram o JSON.parse.
+      data = JSON.parse(text.replace(/^﻿/, '').trim());
+    } catch {
+      setMessage({ tone: 'err', text: 'O texto não é JSON válido. Confira vírgulas e aspas.' });
+      return;
     }
+    if (!Array.isArray(data)) {
+      setMessage({ tone: 'err', text: 'O conteúdo precisa ser uma lista JSON de questões.' });
+      return;
+    }
+    // Mesmas regras dos testes automatizados: nenhuma questão entra se alguma estiver inválida.
+    // Questões vindas de arquivo ou colagem são sempre marcadas como importadas, sem depender do campo no JSON.
+    const marked = data.map((q) => (q && typeof q === 'object' ? { ...q, origin: 'importada' } : q));
+    const { valid, errors } = validateBank(marked);
+    if (errors.length) {
+      setMessage({ tone: 'err', text: `Nenhuma questão foi importada. ${errors.length} problema(s): ${errors.slice(0, 3).join(' | ')}${errors.length > 3 ? ' ...' : ''}` });
+      return;
+    }
+    dispatch({ type: 'import-questions', questions: valid });
+    setMessage({ tone: 'ok', text: `${valid.length} ${valid.length === 1 ? 'questão importada' : 'questões importadas'}. O banco agora tem ${allQuestions.length + valid.length} questões.` });
+    setText('');
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
+    <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
       <Card className="flex flex-col gap-4">
-        <Field label="Banco de questões em JSON" hint="Cole uma lista de questões. Os ids das disciplinas estão na aba Conteúdo.">
-          <textarea className={cn(inputClass, 'min-h-72 font-mono text-xs leading-relaxed')} value={text} onChange={(e) => setText(e.target.value)} placeholder={example} spellCheck={false} />
+        <Field label="Enviar arquivo JSON" hint="Escolha um arquivo .json com a lista de questões. Ele é lido aqui no navegador e nada é enviado a servidores.">
+          <input
+            type="file"
+            accept=".json,application/json"
+            aria-label="Escolher arquivo JSON de questões"
+            onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ''; }}
+            className="text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-purple file:px-3 file:py-2 file:text-white"
+          />
+          {fileName && <span className="text-xs text-muted">Arquivo: {fileName}</span>}
+        </Field>
+        <Field label="Ou cole o JSON aqui" hint="Cole uma lista de questões. Os ids das disciplinas estão na aba Conteúdo.">
+          <textarea className={cn(inputClass, 'min-h-72 font-mono text-xs leading-relaxed')} value={text} onChange={(e) => { setText(e.target.value); setFileName(null); }} placeholder={example} spellCheck={false} />
         </Field>
         {message && (
           <p role="status" className={cn('rounded-xl px-4 py-3 text-sm', message.tone === 'ok' ? 'bg-mint/10 text-mint' : 'bg-[#ff8a8a]/10 text-[#ffb3b3]')}>

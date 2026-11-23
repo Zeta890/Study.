@@ -44,7 +44,7 @@ export default function Couple() {
         description="Metas e desafios em conjunto. Cada pessoa vê o próprio histórico e o do outro somente se o outro autorizar."
       />
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-2">
         {[me, partner].map((p) => {
           const isMe = p.id === me.id;
           const exec = executionRate(p, today);

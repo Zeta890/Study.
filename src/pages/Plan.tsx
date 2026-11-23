@@ -97,7 +97,8 @@ export default function Plan() {
                     <li key={a.id} className="flex flex-col gap-1 rounded-xl bg-surface-2/70 px-3.5 py-2.5 sm:flex-row sm:items-center sm:justify-between">
                       <div className="min-w-0">
                         <p className={`text-sm font-medium ${a.status === 'done' ? 'text-muted line-through' : ''}`}>
-                          {activityTitle(a)} <span className="font-normal text-muted">· {activityKindLabel(a.kind)}</span>
+                          {activityTitle(a)} <span className="font-normal text-muted">· {activityKindLabel(a.kind)}</span>{' '}
+                          {a.status === 'unscheduled' && <Pill tone="amber">Não acomodada</Pill>}
                         </p>
                         {a.reason && <p className="mt-0.5 text-xs text-blue">{a.reason}</p>}
                       </div>
