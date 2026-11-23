@@ -110,6 +110,7 @@ function Mock() {
     }
     setNotice(null);
     setResult(null);
+    setNow(Date.now()); // relógio começa agora, evitando tempo negativo na primeira leitura
     save({
       questionIds: comp.questions.map((q) => q.id),
       picks: comp.questions.map(() => null),
@@ -226,7 +227,7 @@ function Mock() {
   const qs = attempt.questionIds.map((id) => questionsById.get(id)).filter(Boolean) as Question[];
   const q = qs[attempt.idx];
   const answered = attempt.picks.filter((p) => p !== null).length;
-  const elapsed = Math.floor((now - attempt.startedAt) / 1000);
+  const elapsed = Math.max(0, Math.floor((now - attempt.startedAt) / 1000));
   const clock = remaining !== null ? Math.ceil(remaining / 1000) : elapsed;
   const mm = String(Math.floor(clock / 60)).padStart(2, '0');
   const ss = String(clock % 60).padStart(2, '0');

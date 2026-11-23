@@ -282,14 +282,27 @@ function Practice() {
   const [params] = useSearchParams();
   const [subjectId, setSubjectId] = useState<string>(params.get('subject') ?? 'lp');
   const pool = allQuestions.filter((q) => q.subjectId === subjectId);
-  const pick = (sid: string) => (me ? pickNext(allQuestions, me, { subjectId: sid }) : undefined);
+  const pick = (sid: string, exclude?: string) => (me ? pickNext(allQuestions, me, { subjectId: sid, exclude }) : undefined);
   // A questão atual fica fixa até o aluno avançar, para a explicação não sumir.
   const [question, setQuestion] = useState<Question | undefined>(() => pick(subjectId));
   if (!me) return null;
 
   return (
     <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-      <Card className="flex flex-col gap-2 p-3">
+      {/* No celular, a lista vira um seletor para a pergunta aparecer logo na tela. */}
+      <label className="flex flex-col gap-1.5 lg:hidden">
+        <span className="text-xs text-muted">Disciplina</span>
+        <select
+          className={inputClass}
+          value={subjectId}
+          onChange={(e) => { setSubjectId(e.target.value); setQuestion(pick(e.target.value)); }}
+        >
+          {SUBJECTS.map((s) => (
+            <option key={s.id} value={s.id}>{s.name} ({allQuestions.filter((q) => q.subjectId === s.id).length})</option>
+          ))}
+        </select>
+      </label>
+      <Card className="hidden flex-col gap-2 p-3 lg:flex">
         <p className="px-2 pb-1 text-xs text-muted">Disciplina</p>
         {SUBJECTS.map((s) => {
           const n = allQuestions.filter((q) => q.subjectId === s.id).length;
@@ -320,7 +333,7 @@ function Practice() {
             question={question}
             mode="treino"
             onAnswer={() => undefined}
-            onNext={() => setQuestion(pick(subjectId))}
+            onNext={() => setQuestion(pick(subjectId, question?.id))}
           />
         ) : null}
       </div>

@@ -96,13 +96,22 @@ export function dueReviews(person: PersonData, today: string = todayISO()): stri
 export function pickNext(
   pool: Question[],
   person: PersonData,
-  options: { subjectId?: string; onlyDue?: boolean } = {},
+  options: { subjectId?: string; onlyDue?: boolean; exclude?: string } = {},
 ): Question | undefined {
   const due = new Set(dueReviews(person));
-  const answered = new Set(person.answers.map((a) => a.questionId));
   let candidates = pool.filter((q) => (!options.subjectId || q.subjectId === options.subjectId));
   if (options.onlyDue) candidates = candidates.filter((q) => due.has(q.id));
-  const fresh = candidates.filter((q) => !answered.has(q.id));
-  const dueFirst = candidates.filter((q) => due.has(q.id));
-  return dueFirst[0] ?? fresh[0] ?? candidates[0];
+  // Nunca devolve a própria questão atual, enquanto houver outra disponível.
+  const others = candidates.filter((q) => q.id !== options.exclude);
+  const pickable = others.length ? others : candidates;
+  if (pickable.length === 0) return undefined;
+  const dueFirst = pickable.filter((q) => due.has(q.id));
+  if (dueFirst.length) return dueFirst[0];
+  // Posição da última resposta de cada questão (-1 = nunca respondida).
+  const lastAt = new Map<string, number>();
+  person.answers.forEach((a, i) => lastAt.set(a.questionId, i));
+  const fresh = pickable.filter((q) => !lastAt.has(q.id));
+  if (fresh.length) return fresh[0];
+  // Todas já foram respondidas: volta pela mais antiga.
+  return [...pickable].sort((a, b) => (lastAt.get(a.id) ?? -1) - (lastAt.get(b.id) ?? -1))[0];
 }
